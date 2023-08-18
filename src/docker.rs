@@ -572,12 +572,16 @@ impl Docker {
     /// let connection = Docker::connect_with_socket("/var/run/docker.sock", 120, API_DEFAULT_VERSION).unwrap();
     /// connection.ping().map_ok(|_| Ok::<_, ()>(println!("Connected!")));
     /// ```
-    pub fn connect_with_socket(path: &str, timeout: u64, client_version: &ClientVersion) -> Result<Docker, Error> {
+    pub fn connect_with_socket(
+        path: &str,
+        timeout: u64,
+        client_version: &ClientVersion,
+    ) -> Result<Docker, Error> {
         #[cfg(unix)]
         let docker = Docker::connect_with_unix(path, timeout, client_version);
         #[cfg(windows)]
         let docker = Docker::connect_with_named_pipe(path, timeout, client_version);
-       
+
         docker
     }
 }
@@ -869,13 +873,11 @@ impl Docker {
     {
         match body.map(|inst| serde_json::to_string(&inst)) {
             Some(Ok(res)) => Ok(Some(res)),
-            Some(Err(e)) => {
-                Err(JsonSerializationError {
-                    message: e.to_string(),
-                    column: e.column(),
-                    contents: format!("{:?}", e),
-                })
-            },
+            Some(Err(e)) => Err(JsonSerializationError {
+                message: e.to_string(),
+                column: e.column(),
+                contents: format!("{:?}", e),
+            }),
             None => Ok(None),
         }
         .map(|payload| {
@@ -946,6 +948,7 @@ impl Docker {
         let timeout = self.client_timeout;
 
         debug!("request: {:?}", request.as_ref().unwrap());
+        println!("request: {:?}", request.as_ref().unwrap());
 
         async move {
             let request = request?;
@@ -972,7 +975,8 @@ impl Docker {
 
                 // Status code 400: Bad request
                 StatusCode::BAD_REQUEST => {
-                    let message = Docker::decode_into_string(response).await?;
+                    let mut message = Docker::decode_into_string(response).await?;
+                    message = format!("request {} message {}", request.as_ref().unwrap(), message);
                     Err(DockerResponseBadParameterError { message })
                 }
 
